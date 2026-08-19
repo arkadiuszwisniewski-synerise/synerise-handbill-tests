@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Handbill Tests</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <div class="topbar-row">
+      <div class="topbar-brand">
+        <h1>Handbill Tests</h1>
+        <p class="subtitle">Sandbox for Synerise promotions and handbills</p>
+      </div>
+      <div class="topbar-controls">
+        <label class="topbar-field"><span>client <button type="button" class="help-btn" data-help="fn-client" aria-label="About the client identifier">?</button></span>
+          <select id="global-identifier-type">
+            <option value="clientId">clientId</option>
+            <option value="uuid">uuid</option>
+            <option value="customId">customId</option>
+            <option value="email">email</option>
+          </select>
+        </label>
+        <label class="topbar-field topbar-grow">
+          <span>identifierValue</span>
+          <input id="global-identifier-value" placeholder="e.g. 123 or user@example.com" autocomplete="off" />
+        </label>
+        <label class="topbar-field"><span>workspace <button type="button" class="help-btn" data-help="fn-workspaces" aria-label="About workspaces">?</button></span>
+          <span class="topbar-ws">
+            <select id="workspace-select"></select>
+            <button type="button" id="workspace-add-toggle" class="combo-btn" title="Add a workspace API key" aria-label="Add workspace">＋</button>
+            <button type="button" id="workspace-remove" class="combo-btn" title="Forget the selected workspace" aria-label="Forget workspace">✕</button>
+          </span>
+        </label>
+        <span id="workspace-status" class="topbar-status"></span>
+      </div>
+    </div>
+    <div id="workspace-add" class="workspace-add" hidden>
+      <label>name
+        <input id="workspace-name" placeholder="e.g. demo workspace" autocomplete="off" />
+      </label>
+      <label class="topbar-grow">apiKey
+        <input id="workspace-key" placeholder="paste workspace API key" autocomplete="off" />
+      </label>
+      <span class="workspace-remember" title="The key is validated with a login, then stored in the platform keystore (service handbill-tests) — never in the browser or in a plaintext file.">stored in the system keychain 🔒</span>
+      <button type="button" id="workspace-add-btn">Add &amp; switch</button>
+      <span id="workspace-add-status" class="topbar-status"></span>
+    </div>
+    <nav class="tabs">
+      <button type="button" id="tab-testing" class="tab active">Testing</button>
+      <button type="button" id="tab-settings" class="tab">Settings</button>
+      <button type="button" id="collapse-all" class="tabs-action" title="Collapse or expand every section">Collapse all</button>
+    </nav>
+  </header>
+
+  <main>
+    <div id="view-testing" class="view">
+    <section class="card" id="sec-fetch">
+      <header>
+        <h2><span class="sec-num"></span>Fetch handbill <button type="button" class="help-btn" data-help="sec-fetch" aria-label="About this section">?</button></h2>
+        <div class="row-actions">
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="promotions-fetch">promotions</button>
+              <button type="button" class="help-btn" data-help="fn-promotions-fetch" aria-label="About promotions">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="promotions-fetch">copy curl</button>
+          </div>
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="handbill-fetch">handbill</button>
+              <button type="button" class="help-btn" data-help="fn-handbill-fetch" aria-label="About handbill">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="handbill-fetch">copy curl</button>
+          </div>
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="handbill-batch">handbills + promotions</button>
+              <button type="button" class="help-btn" data-help="fn-handbill-batch" aria-label="About handbills + promotions">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="handbill-batch">copy curl</button>
+          </div>
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="handbill-config">check the handbill configuration</button>
+              <button type="button" class="help-btn" data-help="fn-handbill-config" aria-label="About handbill configuration">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="handbill-config">copy curl</button>
+          </div>
+        </div>
+      </header>
+      <div class="card-body">
+        <form id="handbill-form" class="form-grid">
+          <input type="hidden" name="identifierType" />
+          <input type="hidden" name="identifierValue" />
+          <label class="full"><span>handbillUuid (comma-separated for multiple) <button type="button" class="help-btn" data-help="fn-handbill-list" aria-label="About the handbill picker">?</button></span>
+            <div class="combo">
+              <input name="handbillUuid" id="handbill-uuid-input" placeholder="Handbill campaign UUID(s)" autocomplete="off" />
+              <button type="button" id="handbill-uuid-clear" class="combo-btn" title="Clear" aria-label="Clear">✕</button>
+              <button type="button" id="handbill-uuid-refresh" class="combo-btn" title="Fetch" aria-label="Fetch">↻</button>
+              <button type="button" id="handbill-uuid-toggle" class="combo-btn" title="Expand" aria-label="Expand">▾</button>
+              <div id="handbill-uuid-list" class="combo-list" hidden></div>
+            </div>
+          </label>
+          <div class="full sort-block">
+            <span>filters (optional — <em>promotions</em> button only; sent as query params, e.g. <code>status=ACTIVE,REDEEMED&amp;type=HANDBILL</code>) <button type="button" class="help-btn" data-help="fn-promotions-fetch" aria-label="About filters">?</button></span>
+            <div id="filter-rows" class="sort-rows"></div>
+            <button type="button" id="filter-add" class="combo-btn sort-add">+ add filter</button>
+          </div>
+          <div class="full sort-block">
+            <span>sort (optional — <em>promotions</em> button only; sent as <code>sort=attribute,direction</code>) <button type="button" class="help-btn" data-help="fn-promotions-fetch" aria-label="About sorting">?</button></span>
+            <div id="sort-rows" class="sort-rows"></div>
+            <button type="button" id="sort-add" class="combo-btn sort-add">+ add next sort</button>
+          </div>
+        </form>
+      </div>
+      <div class="card-result">
+        <div class="result-head"><h3>Result</h3><button type="button" class="result-clear btn-trash">Clear</button></div>
+        <pre id="handbill-output">—</pre>
+        <div id="handbill-activate" class="activate-block" hidden>
+          <div class="result-head"><h3>Activate <button type="button" class="help-btn" data-help="fn-activate" aria-label="About activation">?</button> or redeem <button type="button" class="help-btn" data-help="fn-redeem" aria-label="About redeeming">?</button> a promotion for this client</h3></div>
+          <p class="hint">Picks a promotion from the results above and uses the client picked in the top bar. <em>Activate</em> POSTs to <code>activate-for-client/{identifierType}/{identifierValue}</code> (optional <code>pointsToUse</code> applies to cashback promotions). <em>Redeem</em> POSTs the promotion <code>code</code> to <code>promotion/redeem</code> (optional <code>quantity</code> = number of redeemed items) — the API accepts it only for <code>ACTIVE</code> promotions, so activate first or expect an error.</p>
+          <label class="activate-points">pointsToUse (optional — Activate)
+            <input id="activate-points" type="number" min="0" placeholder="cashback points to convert" />
+          </label>
+          <label class="activate-points">quantity (optional — Redeem)
+            <input id="redeem-quantity" type="number" min="1" placeholder="redeemed items count" />
+          </label>
+          <div id="activate-promo-list" class="activate-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="sec-promo-get">
+      <header>
+        <h2><span class="sec-num"></span>Promotion: get / create / update <button type="button" class="help-btn" data-help="sec-promo-get" aria-label="About this section">?</button></h2>
+        <div class="row-actions">
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="promotion-get">get promotion</button>
+              <button type="button" class="help-btn" data-help="sec-promo-get" aria-label="About get promotion">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="promotion-get">copy curl</button>
+          </div>
+          <div class="action-pair">
+            <span class="btn-help">
+              <button type="button" id="promotion-raw-create">create promotion</button>
+              <button type="button" class="help-btn" data-help="fn-promotion-raw-create" aria-label="About create promotion">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="promotion-raw-create">copy curl</button>
+          </div>
+          <div class="action-pair">
+            <span class="btn-help">
+              <button type="button" id="promotion-raw-update">update promotion</button>
+              <button type="button" class="help-btn" data-help="fn-promotion-raw-update" aria-label="About update promotion">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="promotion-raw-update">copy curl</button>
+          </div>
+        </div>
+      </header>
+      <div class="card-body">
+        <form id="promotion-get-form" class="form-grid">
+          <label>promotion by — used by get &amp; update
+            <select name="searchKey">
+              <option value="uuid" selected>uuid</option>
+              <option value="code">code</option>
+            </select>
+          </label>
+          <label>value
+            <input name="searchValue" placeholder="promotion uuid or code" autocomplete="off" />
+          </label>
+          <label class="full"><span class="editor-label"><span>promotion JSON (<em>create</em> POSTs it as-is; <em>update</em> PUTs it to the promotion above — <em>get</em> prefills this when empty)</span>
+              <button type="button" id="promotion-crud-insert" class="combo-btn editor-insert" disabled title="Copy the last fetched promotion into the editor">⤵ insert fetched</button></span>
+            <textarea id="promotion-crud-json" rows="8" spellcheck="false" autocomplete="off" placeholder='{&#10;  "headerName": "…",&#10;  "type": "HANDBILL"&#10;}'></textarea>
+            <span id="promotion-crud-json-error" class="field-error" hidden></span>
+          </label>
+        </form>
+        <p class="hint"><em>get</em> GETs <code>/v4/promotions/promotion/{uuid|code}/{value}</code> (GetPromotionDetailsAsBusinessProfile) — the promotion's workspace configuration, no profile context (the <code>uuid</code>/<code>code</code> show up in <em>Fetch handbill</em>, <em>Create promotions</em> and <em>List matching</em> results). <em>⤵ insert fetched</em> copies the fetched promotion into the editor, trimmed to the writable fields (read-only ones like <code>uuid</code>, counters and timestamps would pollute the update) — <code>null</code>/empty values are dropped too, since omitted fields stay unchanged anyway and echoing them back trips validation (add a <code>null</code> back by hand to clear a field on purpose). <em>update</em> PUTs the editor's JSON to the promotion picked above — a partial update: only the fields you send change, but an explicit <code>null</code> overwrites the stored value. <em>create</em> POSTs the editor's JSON as a new promotion — remember to change <code>code</code> and <code>headerName</code> first when starting from a fetched promotion (<code>code</code> must be unique).</p>
+      </div>
+      <div class="card-result">
+        <div class="result-head"><h3>Result</h3><button type="button" class="result-clear btn-trash">Clear</button></div>
+        <pre id="promotion-get-output">—</pre>
+      </div>
+    </section>
+
+    <section class="card" id="sec-brickworks">
+      <header>
+        <h2><span class="sec-num"></span>Brickworks output <button type="button" class="help-btn" data-help="sec-brickworks" aria-label="About this section">?</button></h2>
+        <div class="row-actions">
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="brickworks-preview">preview record</button>
+              <button type="button" class="help-btn" data-help="fn-brickworks-preview" aria-label="About preview record">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="brickworks-preview">copy curl</button>
+          </div>
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="brickworks-generate">generate record</button>
+              <button type="button" class="help-btn" data-help="fn-brickworks-generate" aria-label="About generate record">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="brickworks-generate">copy curl</button>
+          </div>
+        </div>
+      </header>
+      <div class="card-body">
+        <form id="brickworks-form" class="form-grid">
+          <input type="hidden" name="identifierType" />
+          <input type="hidden" name="identifierValue" />
+          <label class="full"><span>schema <button type="button" class="help-btn" data-help="fn-brickworks-schemas" aria-label="About the schema picker">?</button></span>
+            <div class="combo">
+              <input name="schemaId" id="brickworks-schema-input" placeholder="Schema id — click ↻ to fetch all schemas" autocomplete="off" />
+              <button type="button" id="brickworks-schema-clear" class="combo-btn" title="Clear" aria-label="Clear">✕</button>
+              <button type="button" id="brickworks-schema-refresh" class="combo-btn" title="Fetch" aria-label="Fetch">↻</button>
+              <button type="button" id="brickworks-schema-toggle" class="combo-btn" title="Expand" aria-label="Expand">▾</button>
+              <div id="brickworks-schema-list" class="combo-list" hidden></div>
+            </div>
+          </label>
+          <label class="full"><span>record (optional for <em>preview</em>, required for <em>generate</em>) <button type="button" class="help-btn" data-help="fn-brickworks-records" aria-label="About the record picker">?</button></span>
+            <div class="combo">
+              <input name="recordId" id="brickworks-record-input" placeholder="Record id or slug — pick a schema, then click ↻" autocomplete="off" />
+              <button type="button" id="brickworks-record-clear" class="combo-btn" title="Clear" aria-label="Clear">✕</button>
+              <button type="button" id="brickworks-record-refresh" class="combo-btn" title="Fetch" aria-label="Fetch">↻</button>
+              <button type="button" id="brickworks-record-toggle" class="combo-btn" title="Expand" aria-label="Expand">▾</button>
+              <div id="brickworks-record-list" class="combo-list" hidden></div>
+            </div>
+          </label>
+          <label class="full"><span>context (optional — JSON, available in the schema as <code>{{ context.key }}</code>)</span>
+            <textarea id="brickworks-context" rows="4" spellcheck="false" autocomplete="off" placeholder='{&#10;  "key": "value"&#10;}'></textarea>
+            <span id="brickworks-context-error" class="field-error" hidden></span>
+          </label>
+        </form>
+        <p class="hint"><em>preview record</em> GETs the full schema from <code>/brickworks/v1/schemas/{id}</code> — and, when a record is picked, its values from <code>…/records/{recordId}</code> — then POSTs everything with the client picked in the top bar to <code>/brickworks/v1/schemas/records/preview/by/{identifierType}</code> (previewObject) — a dry run, no event. No record picked → the API renders from the schema's published data (SINGLETON schemas always render their record implicitly — <code>values</code> is only sent for other types). <em>generate record</em> POSTs to <code>/brickworks/v1/schemas/{schemaId}/records/{recordId}/generate/by/{identifierType}</code> (generateObjectForProfile) — generates from the latest <strong>published</strong> version of the record and emits the <code>brickwork.generated</code> event on the profile. Identifier mapping: <code>clientId → id</code>, <code>customId → custom_identify</code>.</p>
+      </div>
+      <div class="card-result">
+        <div class="result-head"><h3>Result</h3><button type="button" class="result-clear btn-trash">Clear</button></div>
+        <pre id="brickworks-output">—</pre>
+      </div>
+    </section>
+
+    <section class="card" id="sec-create">
+      <header>
+        <h2><span class="sec-num"></span>Create promotions <button type="button" class="help-btn" data-help="fn-promotion-create" aria-label="About this section">?</button></h2>
+        <div class="action-pair">
+          <span class="btn-help">
+            <button id="promotion-create">Create</button>
+            <button type="button" class="help-btn" data-help="fn-promotion-create" aria-label="About create">?</button>
+          </span>
+          <button type="button" class="curl-copy" data-action="promotion-create">copy curl</button>
+        </div>
+      </header>
+      <div class="card-body">
+        <form id="promotion-form" class="form-grid">
+          <label>count
+            <input name="count" type="number" min="1" max="100" value="1" />
+          </label>
+          <label>priority
+            <input name="priority" type="number" value="250" />
+          </label>
+          <label>redeemLimitPerClient (optional — uses per profile)
+            <input name="redeemLimitPerClient" type="number" min="1" placeholder="1 = one use per profile" />
+          </label>
+          <label>headerName
+            <input name="headerName" value="test-{rand5}-{date}-{serial}" />
+          </label>
+          <label>code (custom_id — unique; used to overwrite later)
+            <input name="code" value="{headerName}" />
+          </label>
+          <label>headerDescription
+            <input name="headerDescription" value="desc-{rand5}-{date}-{serial}" />
+          </label>
+          <label>startAt (optional)
+            <input name="startAt" type="datetime-local" step="1" />
+          </label>
+          <label>expireAt (optional)
+            <input name="expireAt" type="datetime-local" step="1" />
+          </label>
+          <label>type
+            <select name="type">
+              <option value="HANDBILL" selected>HANDBILL</option>
+              <option value="MEMBERS_ONLY">MEMBERS_ONLY</option>
+              <option value="CUSTOM">CUSTOM</option>
+              <option value="GENERAL">GENERAL</option>
+            </select>
+          </label>
+          <label>catalog
+            <input name="catalog" value="221" />
+          </label>
+          <label class="full">tag (optional — from "promotion" directory; multi-select)
+            <div class="combo">
+              <input name="tagHash" id="promotion-tag-input" placeholder="Tag hash(es), comma-separated" autocomplete="off" />
+              <button type="button" id="promotion-tag-clear" class="combo-btn" title="Clear" aria-label="Clear">✕</button>
+              <button type="button" id="promotion-tag-refresh" class="combo-btn" title="Fetch" aria-label="Fetch">↻</button>
+              <button type="button" id="promotion-tag-toggle" class="combo-btn" title="Expand" aria-label="Expand">▾</button>
+              <div id="promotion-tag-list" class="combo-list" hidden></div>
+            </div>
+          </label>
+          <label class="full">custom fields (optional — JSON, deep-merged into the payload)
+            <textarea name="customFields" id="promotion-custom-fields" rows="6" spellcheck="false" autocomplete="off" placeholder='{&#10;  "details": {&#10;    "discountType": {&#10;      "requiredItemsCount": 2&#10;    }&#10;  }&#10;}'></textarea>
+            <span id="promotion-custom-fields-error" class="field-error" hidden></span>
+          </label>
+        </form>
+        <p class="hint">Placeholders: <code>{rand5}</code>, <code>{date}</code>, <code>{serial}</code>, <code>{iso}</code>. <code>code</code> also accepts <code>{headerName}</code> (default) → same value as the name. Empty <code>startAt</code>/<code>expireAt</code> → sent as <code>null</code> (promotion with no time window). <code>redeemLimitPerClient</code> caps how many times one profile can redeem the promotion (set <code>1</code> for single-use per user); empty → API default. <code>custom fields</code> is deep-merged onto the payload — nested objects combine, scalar/array values overwrite.</p>
+      </div>
+      <div class="card-result">
+        <div class="result-head"><h3>Result</h3><button type="button" class="result-clear btn-trash">Clear</button></div>
+        <pre id="promotion-output">—</pre>
+      </div>
+    </section>
+
+    <section class="card" id="sec-voucher-pools">
+      <header>
+        <h2><span class="sec-num"></span>Voucher pools <button type="button" class="help-btn" data-help="sec-voucher-pools" aria-label="About this section">?</button></h2>
+        <div class="row-actions">
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="pool-list">list pools</button>
+              <button type="button" class="help-btn" data-help="fn-pool-list" aria-label="About list pools">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="pool-list">copy curl</button>
+          </div>
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="vouchers-in-pool">vouchers in pool</button>
+              <button type="button" class="help-btn" data-help="fn-vouchers-in-pool" aria-label="About vouchers in pool">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="vouchers-in-pool">copy curl</button>
+          </div>
+        </div>
+      </header>
+      <div class="card-body">
+        <form id="pool-form" class="form-grid">
+          <label class="full"><span>pool (required for <em>vouchers in pool</em>) <button type="button" class="help-btn" data-help="fn-voucher-pools" aria-label="About the pool picker">?</button></span>
+            <div class="combo">
+              <input name="poolUuid" id="pool-picker-input" placeholder="Pool UUID — click ↻ to fetch all pools" autocomplete="off" />
+              <button type="button" id="pool-picker-clear" class="combo-btn" title="Clear" aria-label="Clear">✕</button>
+              <button type="button" id="pool-picker-refresh" class="combo-btn" title="Fetch" aria-label="Fetch">↻</button>
+              <button type="button" id="pool-picker-toggle" class="combo-btn" title="Expand" aria-label="Expand">▾</button>
+              <div id="pool-picker-list" class="combo-list" hidden></div>
+            </div>
+          </label>
+          <label>limit (max 1000)
+            <input name="limit" type="number" min="1" max="1000" value="100" />
+          </label>
+          <label>page (1-based)
+            <input name="page" type="number" min="1" value="1" />
+          </label>
+          <label>includeMeta
+            <select name="includeMeta">
+              <option value="false" selected>false — pagination in headers</option>
+              <option value="true">true — pagination in body (meta)</option>
+            </select>
+          </label>
+        </form>
+        <p class="hint"><em>list pools</em> GETs <code>/v4/vouchers/pool/list</code> (ListPools) — every voucher pool in the workspace with its full definition. <em>vouchers in pool</em> GETs <code>/v4/vouchers/item/list/{poolUuid}</code> (ListVouchersFromPool) for the pool picked above — every code in the pool, whatever its status. Both take <code>limit</code>/<code>page</code>; with <code>includeMeta: false</code> the totals come back in <code>X-Pagination-*</code> headers, which the server reads and reports, and with <code>true</code> they arrive in the response <code>meta</code> object instead.</p>
+      </div>
+      <div class="card-result">
+        <div class="result-head"><h3>Result</h3><button type="button" class="result-clear btn-trash">Clear</button></div>
+        <pre id="pool-output">—</pre>
+      </div>
+    </section>
+
+    <section class="card" id="sec-vouchers">
+      <header>
+        <h2><span class="sec-num"></span>Vouchers <button type="button" class="help-btn" data-help="sec-vouchers" aria-label="About this section">?</button></h2>
+        <div class="row-actions">
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="voucher-create">Create</button>
+              <button type="button" class="help-btn" data-help="fn-voucher-create" aria-label="About create">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="voucher-create">copy curl</button>
+          </div>
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="voucher-check">check voucher</button>
+              <button type="button" class="help-btn" data-help="fn-voucher-check" aria-label="About check voucher">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="voucher-check">copy curl</button>
+          </div>
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="voucher-redeem">redeem voucher</button>
+              <button type="button" class="help-btn" data-help="fn-voucher-redeem" aria-label="About redeem voucher">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="voucher-redeem">copy curl</button>
+          </div>
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="vouchers-for-client">vouchers for profile</button>
+              <button type="button" class="help-btn" data-help="fn-vouchers-for-client" aria-label="About vouchers for profile">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="vouchers-for-client">copy curl</button>
+          </div>
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="voucher-batch-redeem">batch redeem for profile</button>
+              <button type="button" class="help-btn" data-help="fn-voucher-batch-redeem" aria-label="About batch redeem for profile">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="voucher-batch-redeem">copy curl</button>
+          </div>
+        </div>
+      </header>
+      <div class="card-body">
+        <form id="voucher-form" class="form-grid">
+          <label>count
+            <input name="count" type="number" min="1" max="100" value="1" />
+          </label>
+          <label>code (optional — max 36 chars)
+            <input name="code" value="V-{rand5}-{date}-{serial}" maxlength="36" />
+          </label>
+          <label class="full"><span>voucher pool (required) <button type="button" class="help-btn" data-help="fn-voucher-pools" aria-label="About the pool picker">?</button></span>
+            <div class="combo">
+              <input name="poolUuid" id="voucher-pool-input" placeholder="Pool UUID — click ↻ to fetch all pools" autocomplete="off" />
+              <button type="button" id="voucher-pool-clear" class="combo-btn" title="Clear" aria-label="Clear">✕</button>
+              <button type="button" id="voucher-pool-refresh" class="combo-btn" title="Fetch" aria-label="Fetch">↻</button>
+              <button type="button" id="voucher-pool-toggle" class="combo-btn" title="Expand" aria-label="Expand">▾</button>
+              <div id="voucher-pool-list" class="combo-list" hidden></div>
+            </div>
+          </label>
+          <label>clientId (optional — profile ID)
+            <input name="clientId" type="number" placeholder="e.g. 123456" />
+          </label>
+          <label>clientUuid (optional — profile UUID)
+            <input name="clientUuid" placeholder="e.g. 07243772-008a-42e1-…" />
+          </label>
+          <label>expireIn (optional)
+            <input name="expireIn" type="datetime-local" step="1" />
+          </label>
+          <label>status (optional)
+            <select name="status">
+              <option value="" selected>— not set —</option>
+              <option value="ASSIGNED">ASSIGNED</option>
+              <option value="UNASSIGNED">UNASSIGNED</option>
+              <option value="REDEEMED">REDEEMED</option>
+              <option value="CANCELED">CANCELED</option>
+            </select>
+          </label>
+        </form>
+        <p class="hint">POSTs to <code>/v4/vouchers/item</code> (CreateAVoucher), <code>count</code> times. Placeholders in <code>code</code>: <code>{rand5}</code>, <code>{date}</code>, <code>{serial}</code>, <code>{iso}</code> — re-rolled per request; empty <code>code</code> is omitted. To hand the voucher to a profile, set <code>clientId</code> (profile ID) or <code>clientUuid</code> <strong>and</strong> <code>status: ASSIGNED</code>.</p>
+        <form id="voucher-check-form" class="form-grid">
+          <label>check voucher by
+            <select name="searchKey">
+              <option value="code" selected>code</option>
+              <option value="uuid">uuid</option>
+            </select>
+          </label>
+          <label>value
+            <input name="searchValue" id="voucher-check-value" placeholder="voucher code or uuid — prefilled after Create" />
+          </label>
+        </form>
+        <p class="hint"><em>check voucher</em> GETs <code>/v4/vouchers/item/{searchKey}/{searchValue}</code> (ViewVoucherDetailsBySearchKey) and shows the voucher's current <code>status</code>, assigned profile and dates. <em>redeem voucher</em> POSTs the same value to <code>/v4/vouchers/item/redeem</code> (RedeemAVoucher — requires <em>by</em> = <code>code</code>) and flips the status to <code>REDEEMED</code>. The value is prefilled with the first code from the last Create run.</p>
+        <form id="vouchers-client-form" class="form-grid" hidden>
+          <input type="hidden" name="identifierType" />
+          <input type="hidden" name="identifierValue" />
+        </form>
+        <p class="hint"><em>vouchers for profile</em> GETs <code>/v4/vouchers/item/get-assigned-for-client/by-identifier</code> — all vouchers assigned to the client picked in the top bar. Identifier mapping: <code>clientId → id</code>, <code>customId → custom_identify</code>.</p>
+        <form id="voucher-batch-redeem-form" class="form-grid">
+          <label>batch redeem — profileKey
+            <select name="profileKey">
+              <option value="clientId" selected>clientId</option>
+              <option value="uuid">uuid</option>
+              <option value="email">email</option>
+              <option value="phone">phone</option>
+              <option value="externalId">externalId</option>
+            </select>
+          </label>
+          <label>profileValue
+            <input name="profileValue" placeholder="e.g. 123 or user@example.com" />
+          </label>
+          <label class="full">voucher codes (comma-separated, max 100)
+            <input name="codes" placeholder="e.g. V-12345-20260727-1, V-67890-20260727-2" />
+          </label>
+        </form>
+        <p class="hint"><em>batch redeem for profile</em> POSTs a bare array (one item per code) to <code>/v4/promotions/voucher/batch-redeem-for-profile</code> (BatchRedeemVouchersForProfile, promotions service — redeems vouchers connected to promotions, not standalone pool codes). Partial failures come back as <code>207</code> with per-item errors. The documented <code>options</code> object is rejected by the live API, so it's not sent.</p>
+      </div>
+      <div class="card-result">
+        <div class="result-head"><h3>Result</h3><button type="button" class="result-clear btn-trash">Clear</button></div>
+        <pre id="voucher-output">—</pre>
+      </div>
+    </section>
+
+    <section class="card" id="sec-events">
+      <header>
+        <h2><span class="sec-num"></span>Add event/transaction to profile <button type="button" class="help-btn" data-help="sec-events" aria-label="About this section">?</button></h2>
+        <div class="action-pair">
+          <span class="btn-help">
+            <button id="event-add">Add event</button>
+            <button type="button" class="help-btn" data-help="fn-event-add" aria-label="About add event">?</button>
+          </span>
+          <button type="button" class="curl-copy" data-action="event-add">copy curl</button>
+        </div>
+      </header>
+      <div class="card-body">
+        <form id="event-form" class="form-grid">
+          <input type="hidden" name="identifierType" />
+          <input type="hidden" name="identifierValue" />
+          <div class="full">
+            <span>type
+              <span class="params-mode" role="group" aria-label="Event type">
+                <button type="button" id="event-kind-event" class="combo-btn on">custom event</button>
+                <button type="button" id="event-kind-transaction" class="combo-btn">transaction</button>
+              </span>
+            </span>
+          </div>
+          <label class="event-only">action (noun.verb)
+            <input name="action" value="test.event" placeholder="e.g. product.buy" />
+          </label>
+          <label class="event-only">label (required — not stored, not usable in Analytics)
+            <input name="label" value="test-{rand5}-{date}-{serial}" />
+          </label>
+          <label>count
+            <input name="count" type="number" min="1" max="100" value="1" />
+          </label>
+          <label class="event-only">time (optional — future times are rejected)
+            <input name="time" type="datetime-local" step="1" />
+          </label>
+          <label class="event-only">eventSalt (optional — dedup/overwrite key)
+            <input name="eventSalt" placeholder="same salt+time+client+action = overwrite" />
+          </label>
+          <div class="full params-block event-only">
+            <span>params (optional — free-form event parameters)
+              <span class="params-mode" role="group" aria-label="Params input mode">
+                <button type="button" id="event-params-mode-fields" class="combo-btn on">fields</button>
+                <button type="button" id="event-params-mode-raw" class="combo-btn">raw JSON</button>
+              </span>
+            </span>
+            <div id="event-params-rows" class="params-rows"></div>
+            <button type="button" id="event-params-add" class="combo-btn sort-add">+ add param</button>
+            <textarea id="event-params" rows="6" spellcheck="false" autocomplete="off" placeholder='{&#10;  "source": "handbill-tests",&#10;  "value": 42&#10;}' hidden></textarea>
+            <span id="event-params-error" class="field-error" hidden></span>
+          </div>
+          <div class="full params-block" id="txn-payload-block" hidden>
+            <span>transaction payload (JSON — <code>client</code> is injected from the top bar)</span>
+            <textarea id="txn-payload" rows="24" spellcheck="false" autocomplete="off"></textarea>
+            <span id="txn-payload-error" class="field-error" hidden></span>
+          </div>
+        </form>
+        <p class="hint" id="event-hint">POSTs to <code>/v4/events/custom</code> (CustomEvent), <code>count</code> times, for the client picked in the top bar. <code>action</code> must be <code>noun.verb</code> (e.g. <code>test.event</code>); <code>label</code> is required by the API but <strong>not saved</strong> and can't be used in Analytics. Placeholders in <code>label</code>/<code>eventSalt</code>: <code>{rand5}</code>, <code>{date}</code>, <code>{serial}</code>, <code>{iso}</code> — re-rolled per request. <code>params</code> can be clicked together key by key (values are JSON-parsed when possible — <code>42</code>, <code>true</code>, <code>null</code>, <code>["a"]</code> — otherwise sent as strings) or pasted as one JSON object via the <em>raw JSON</em> toggle; switching modes converts the current input. Empty <code>time</code> → the API stamps the current time. Identifier mapping to the <code>client</code> object: <code>clientId → id</code> (integer), <code>customId → customId</code>. The API replies <code>202 Accepted</code> — check the profile's activity log to see the event.</p>
+        <p class="hint" id="txn-hint" hidden>POSTs the payload to <code>/v4/transactions</code> (CreateATransaction), <code>count</code> times, with <code>client</code> injected from the top bar (<code>clientId → id</code> integer, <code>customId → customId</code>). Required: <code>orderId</code>, <code>products</code> (each needs <code>name</code> + <code>finalUnitPrice</code>), <code>paymentInfo.method</code>, <code>revenue</code>, <code>value</code>, <code>source</code>. All amounts must share one currency; <code>revenue</code>/<code>value</code> are <strong>not</strong> auto-calculated from products. Placeholders <code>{rand5}</code>, <code>{date}</code>, <code>{serial}</code>, <code>{iso}</code> work in any string value and re-roll per request, so <code>orderId</code> stays unique across repeats. Optional: <code>recordedAt</code> (ISO, no future times), <code>eventSalt</code> (same salt+recordedAt+client+orderId = overwrite), <code>discountAmount</code> (&gt; 0 or omit), <code>metadata</code>. The API replies <code>202 Accepted</code> and emits <code>transaction.charge</code> plus one <code>product.buy</code> per item.</p>
+      </div>
+      <div class="card-result">
+        <div class="result-head"><h3>Result</h3><button type="button" class="result-clear btn-trash">Clear</button></div>
+        <pre id="event-output">—</pre>
+      </div>
+    </section>
+
+    <section class="card" id="sec-pos">
+      <header>
+        <h2><span class="sec-num"></span>Process basket / checkout (POS) <button type="button" class="help-btn" data-help="sec-pos" aria-label="About this section">?</button></h2>
+        <div class="row-actions">
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="process-sale">process basket</button>
+              <button type="button" class="help-btn" data-help="fn-process-sale" aria-label="About process basket">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="process-sale">copy curl</button>
+          </div>
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="process-checkout">process checkout</button>
+              <button type="button" class="help-btn" data-help="fn-process-checkout" aria-label="About process checkout">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="process-checkout">copy curl</button>
+          </div>
+        </div>
+      </header>
+      <div class="card-body">
+        <form id="pos-form" class="form-grid">
+          <input type="hidden" name="identifierType" />
+          <input type="hidden" name="identifierValue" />
+          <div class="full params-block">
+            <span>transaction JSON (string placeholders re-roll per request)
+              <span class="params-mode" role="group" aria-label="Insert template">
+                <button type="button" id="pos-template-sale" class="combo-btn">basket template</button>
+                <button type="button" id="pos-template-checkout" class="combo-btn">checkout template</button>
+              </span>
+            </span>
+            <textarea id="pos-json" rows="20" spellcheck="false" autocomplete="off"></textarea>
+            <span id="pos-json-error" class="field-error" hidden></span>
+          </div>
+        </form>
+        <p class="hint"><em>process basket</em> POSTs the JSON to <code>/v4/promotions/v2/sale/process-sale/{identifierType}/{identifierValue}</code> (processSale) — evaluates the basket against the profile's promotions; it also accepts an optional <code>promotionsToActivate</code> array (<code>{ "key": "uuid"|"code", "value": "…", "pointsToUse": 0 }</code>). <em>process checkout</em> POSTs to <code>/v4/promotions/sale/process-checkout/{identifierType}/{identifierValue}</code> (processCheckout) — finalizes the transaction and additionally requires <code>paymentsReport.paymentItems</code>. The client comes from the top bar (mapping: <code>customId → externalId</code>). Placeholders <code>{rand5}</code>, <code>{date}</code>, <code>{serial}</code>, <code>{iso}</code> work in any string value — the templates use them for <code>clientDateTime</code> and <code>globalTransactionId</code>. Money fields (<code>finalValue</code>, prices) are strings; <code>quantity</code> takes 3 decimal places.</p>
+      </div>
+      <div class="card-result">
+        <div class="result-head"><h3>Result</h3><button type="button" class="result-clear btn-trash">Clear</button></div>
+        <pre id="pos-output">—</pre>
+      </div>
+    </section>
+
+    <section class="card" id="sec-batch">
+      <header>
+        <h2><span class="sec-num"></span>Batch overwrite (targetSegment) <button type="button" class="help-btn" data-help="sec-batch" aria-label="About this section">?</button></h2>
+        <div class="action-pair">
+          <span class="btn-help">
+            <button id="batch-import">Overwrite</button>
+            <button type="button" class="help-btn" data-help="sec-batch" aria-label="About overwrite">?</button>
+          </span>
+          <button type="button" class="curl-copy" data-action="batch-import">copy curl</button>
+        </div>
+      </header>
+      <div class="card-body">
+        <form id="batch-form" class="form-grid">
+          <label class="full">targetSegment (comma-separated segment ids)
+            <input name="targetSegment" placeholder="e.g. vip_customers, frequent_buyers" />
+          </label>
+          <label class="full">codes to overwrite (comma-separated)
+            <textarea name="codes" id="batch-codes" rows="4" spellcheck="false" autocomplete="off" placeholder="promotion codes to re-import — auto-filled after Create"></textarea>
+          </label>
+        </form>
+        <div class="row-actions">
+          <div class="action-pair">
+            <span class="btn-help">
+              <button type="button" id="batch-use-created">Use last created codes</button>
+              <button type="button" class="help-btn" data-help="fn-batch-use-created" aria-label="About last created codes">?</button>
+            </span>
+          </div>
+          <div class="action-pair">
+            <span class="btn-help">
+              <button type="button" id="batch-load-existing">Load codes by prefix (test-)</button>
+              <button type="button" class="help-btn" data-help="fn-batch-load-existing" aria-label="About loading codes">?</button>
+            </span>
+          </div>
+        </div>
+        <p class="hint">POSTs <code>{ "data": [ … ] }</code> to <code>/v4/promotions/v2/promotion/batch</code> (BatchImportPromotions). Matching is by <code>code</code>; it's a <strong>partial merge/upsert</strong> (async, 202), so each item sends only <code>{ code, targetType: "SEGMENT", targetSegment }</code> — <strong>all other fields on the promotion are left untouched</strong>. (If a <code>code</code> doesn't exist yet, batch creates it.) After overwriting, re-run <em>List matching</em> below (or fetch for a client) to confirm the segment changed.</p>
+      </div>
+      <div class="card-result">
+        <div class="result-head"><h3>Result</h3><button type="button" class="result-clear btn-trash">Clear</button></div>
+        <pre id="batch-output">—</pre>
+      </div>
+    </section>
+
+    <section class="card" id="sec-cleanup">
+      <header>
+        <h2><span class="sec-num"></span>Cleanup promotions <button type="button" class="help-btn" data-help="sec-cleanup" aria-label="About this section">?</button></h2>
+      </header>
+      <div class="card-body">
+        <form id="cleanup-form" class="form-grid">
+          <label class="full">headerName prefix
+            <input name="prefix" value="test-" />
+          </label>
+        </form>
+        <div class="row-actions">
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="cleanup-list">List matching</button>
+              <button type="button" class="help-btn" data-help="fn-cleanup-list" aria-label="About list matching">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="cleanup-list">copy curl</button>
+          </div>
+          <div class="action-pair">
+            <span class="btn-help">
+              <button id="cleanup-delete" class="danger">Delete matching</button>
+              <button type="button" class="help-btn" data-help="fn-cleanup-delete" aria-label="About delete matching">?</button>
+            </span>
+            <button type="button" class="curl-copy" data-action="cleanup-delete">copy curl</button>
+          </div>
+        </div>
+        <p class="hint">Lists all promotions in the workspace (max 1000) and filters locally by <code>headerName</code> prefix. Delete runs sequentially by <code>code</code>. <strong>Empty prefix = deletes ALL promotions</strong> (after double confirmation).</p>
+      </div>
+      <div class="card-result">
+        <div class="result-head"><h3>Result</h3><button type="button" class="result-clear btn-trash">Clear</button></div>
+        <pre id="cleanup-output">—</pre>
+      </div>
+    </section>
+
+    <section class="card" id="sec-promo-settings">
+      <header>
+        <h2><span class="sec-num"></span>Promotion settings <button type="button" class="help-btn" data-help="fn-promotion-settings" aria-label="About this section">?</button></h2>
+        <div class="action-pair">
+          <span class="btn-help">
+            <button id="promotion-settings">check promotion settings</button>
+            <button type="button" class="help-btn" data-help="fn-promotion-settings" aria-label="About promotion settings">?</button>
+          </span>
+          <button type="button" class="curl-copy" data-action="promotion-settings">copy curl</button>
+        </div>
+        <div class="action-pair">
+          <span class="btn-help">
+            <button type="button" id="promotion-settings-update">update promotion settings</button>
+            <button type="button" class="help-btn" data-help="fn-promotion-settings" aria-label="About updating promotion settings">?</button>
+          </span>
+          <button type="button" class="curl-copy" data-action="promotion-settings-update">copy curl</button>
+        </div>
+      </header>
+      <div class="card-body">
+        <form class="form-grid">
+          <label class="full"><span class="editor-label"><span>settings JSON (sent as-is via PUT — <em>check</em> prefills this when empty)</span>
+              <button type="button" id="promotion-settings-insert" class="combo-btn editor-insert" disabled title="Copy the last fetched settings into the editor">⤵ insert fetched</button></span>
+            <textarea id="promotion-settings-json" rows="8" spellcheck="false" autocomplete="off" placeholder='{&#10;  "activation": { … },&#10;  "redeemLimits": { … }&#10;}'></textarea>
+            <span id="promotion-settings-json-error" class="field-error" hidden></span>
+          </label>
+        </form>
+        <p class="hint"><em>check</em> GETs <code>/v4/promotions/settings</code> and shows the current workspace promotion settings (and prefills the editor above if it's empty). <em>⤵ insert fetched</em> copies the last fetched settings into the editor (overwriting it). <em>update</em> PUTs the JSON above to the same endpoint — the whole object is sent as-is, so edit the fetched settings rather than sending a fragment.</p>
+      </div>
+      <div class="card-result">
+        <div class="result-head"><h3>Result</h3><button type="button" class="result-clear btn-trash">Clear</button></div>
+        <pre id="promotion-settings-output">—</pre>
+      </div>
+    </section>
+
+    <section class="card" id="sec-handbill-config">
+      <header>
+        <h2><span class="sec-num"></span>Handbill configuration <button type="button" class="help-btn" data-help="fn-handbill-config-card" aria-label="About this section">?</button></h2>
+        <div class="action-pair">
+          <span class="btn-help">
+            <button id="handbill-config-get">check handbill configuration</button>
+            <button type="button" class="help-btn" data-help="fn-handbill-config" aria-label="About handbill configuration">?</button>
+          </span>
+          <button type="button" class="curl-copy" data-action="handbill-config-get">copy curl</button>
+        </div>
+        <div class="action-pair">
+          <span class="btn-help">
+            <button type="button" id="handbill-config-update">update handbill configuration</button>
+            <button type="button" class="help-btn" data-help="fn-handbill-config-update" aria-label="About updating a handbill">?</button>
+          </span>
+          <button type="button" class="curl-copy" data-action="handbill-config-update">copy curl</button>
+        </div>
+      </header>
+      <div class="card-body">
+        <form class="form-grid">
+          <label class="full"><span>handbillUuid <button type="button" class="help-btn" data-help="fn-handbill-list" aria-label="About the handbill picker">?</button></span>
+            <span class="combo">
+              <input name="handbillUuid" id="hbcfg-uuid-input" placeholder="Handbill campaign UUID" autocomplete="off" />
+              <button type="button" id="hbcfg-uuid-clear" class="combo-btn" title="Clear" aria-label="Clear">✕</button>
+              <button type="button" id="hbcfg-uuid-refresh" class="combo-btn" title="Fetch" aria-label="Fetch">↻</button>
+              <button type="button" id="hbcfg-uuid-toggle" class="combo-btn" title="Expand" aria-label="Expand">▾</button>
+              <div id="hbcfg-uuid-list" class="combo-list" hidden></div>
+            </span>
+          </label>
+          <label class="full"><span class="editor-label"><span>handbill JSON (sent as-is via PATCH — <em>check</em> prefills this when empty)</span>
+              <button type="button" id="handbill-config-insert" class="combo-btn editor-insert" disabled title="Copy the last fetched configuration into the editor">⤵ insert fetched</button></span>
+            <textarea id="handbill-config-json" rows="8" spellcheck="false" autocomplete="off" placeholder='{&#10;  "name": "…",&#10;  "displaySchema": { … }&#10;}'></textarea>
+            <span id="handbill-config-json-error" class="field-error" hidden></span>
+          </label>
+        </form>
+        <p class="hint"><em>check</em> GETs <code>/v4/promotions/handbill/{handbillUuid}</code> — the workspace configuration of the campaign, no profile context (and prefills the editor above if it's empty). <em>⤵ insert fetched</em> copies the last fetched configuration into the editor (overwriting it), trimmed to the fields the PATCH accepts: <code>channel</code>, <code>status</code>, <code>name</code>, <code>description</code>, <code>controlGroup</code>, <code>variants</code> — the read-only rest (<code>uuid</code>, <code>createdAt</code>, …) would fail with a 422. <em>update</em> PATCHes the JSON above to the same endpoint — start from the fetched configuration and edit it, so no field gets nulled by an incomplete payload.</p>
+      </div>
+      <div class="card-result">
+        <div class="result-head"><h3>Result</h3><button type="button" class="result-clear btn-trash">Clear</button></div>
+        <pre id="handbill-config-output">—</pre>
+      </div>
+    </section>
+    </div>
+
+    <div id="view-settings" class="view" hidden>
+    <section class="card">
+      <header>
+        <h2>Testing sections <button type="button" class="help-btn" data-help="sec-manager" aria-label="About section settings">?</button></h2>
+        <div class="action-pair">
+          <button type="button" id="sections-show-all">Show all</button>
+          <button type="button" id="sections-hide-all">Hide all</button>
+          <button type="button" id="sections-reset">Reset to default</button>
+        </div>
+      </header>
+      <div class="card-body">
+        <p class="hint">Drag a row (<code>⠿</code>) — or use ↑ / ↓ — to reorder sections within a group; drag a group header (<code>⠿</code>) — or use its ↑ / ↓ — to move the whole group. Toggle <code>1/0</code> to show or hide a section; the pill toggle on a group header shows/hides the whole group (<code>±</code> = mixed), <em>Show all</em>/<em>Hide all</em> flip every section at once. Changes apply immediately and are saved in this browser (localStorage).</p>
+        <div id="section-manager" class="section-manager"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <header>
+        <h2>Bearer token <button type="button" class="help-btn" data-help="sec-token" aria-label="About this section">?</button></h2>
+        <span class="btn-help">
+          <button id="token-refresh">Refresh token</button>
+          <button type="button" class="help-btn" data-help="sec-token" aria-label="About token refresh">?</button>
+        </span>
+      </header>
+      <div class="card-body">
+        <dl class="meta">
+          <dt>Status</dt><dd id="token-status">—</dd>
+          <dt>Expires</dt><dd id="token-expires">—</dd>
+        </dl>
+        <p class="hint">Workspace API keys are managed in the top bar — the <code>＋</code> button next to the workspace picker adds one. Keys are stored in the <strong>platform keystore</strong> (macOS Keychain, Windows Credential Manager, or a libsecret keyring on Linux — never in the browser or in a plaintext file); the browser only sees workspace names, so the list is shared by every browser on this computer.</p>
+      </div>
+      <div class="card-result">
+        <div class="result-head"><h3>Full response</h3><button type="button" class="result-clear btn-trash">Clear</button></div>
+        <pre id="token-output">—</pre>
+      </div>
+    </section>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
