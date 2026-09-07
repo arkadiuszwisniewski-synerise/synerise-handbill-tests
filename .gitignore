@@ -4,3 +4,6 @@ node_modules/
 *.log
 workspaces.json
 .claude/
+
+# side project: local API test scenarios (not part of the tool)
+sandbox/

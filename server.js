@@ -1081,7 +1081,7 @@ const PROFILE_IDENTIFIER_TYPES = {
   email: 'email',
 };
 
-// ---- POS: process basket / checkout ----------------------------------------
+// ---- POS: process sale / checkout ----------------------------------------
 
 // The POS sale endpoints take the profile identifier in the path; the top-bar
 // identifier types map 1:1 except customId, which this API calls externalId.
@@ -1125,7 +1125,7 @@ async function processPosTransaction(req, res, { label, path }) {
   }
 }
 
-// Evaluate a basket against the profile's promotions (processSale — "Process basket").
+// Evaluate a basket against the profile's promotions (processSale — "Process basket" in the docs).
 app.post('/api/process-sale', (req, res) => processPosTransaction(req, res, {
   label: 'process-sale',
   path: '/v4/promotions/v2/sale/process-sale',

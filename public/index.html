@@ -548,12 +548,12 @@
 
     <section class="card" id="sec-pos">
       <header>
-        <h2><span class="sec-num"></span>Process basket / checkout (POS) <button type="button" class="help-btn" data-help="sec-pos" aria-label="About this section">?</button></h2>
+        <h2><span class="sec-num"></span>Process sale / checkout (POS) <button type="button" class="help-btn" data-help="sec-pos" aria-label="About this section">?</button></h2>
         <div class="row-actions">
           <div class="action-pair">
             <span class="btn-help">
-              <button id="process-sale">process basket</button>
-              <button type="button" class="help-btn" data-help="fn-process-sale" aria-label="About process basket">?</button>
+              <button id="process-sale">process sale</button>
+              <button type="button" class="help-btn" data-help="fn-process-sale" aria-label="About process sale">?</button>
             </span>
             <button type="button" class="curl-copy" data-action="process-sale">copy curl</button>
           </div>
@@ -573,15 +573,18 @@
           <div class="full params-block">
             <span>transaction JSON (string placeholders re-roll per request)
               <span class="params-mode" role="group" aria-label="Insert template">
-                <button type="button" id="pos-template-sale" class="combo-btn">basket template</button>
+                <button type="button" id="pos-template-sale" class="combo-btn">sale template</button>
                 <button type="button" id="pos-template-checkout" class="combo-btn">checkout template</button>
+                <button type="button" id="pos-template-coupon" class="combo-btn">coupon template</button>
               </span>
             </span>
             <textarea id="pos-json" rows="20" spellcheck="false" autocomplete="off"></textarea>
             <span id="pos-json-error" class="field-error" hidden></span>
           </div>
         </form>
-        <p class="hint"><em>process basket</em> POSTs the JSON to <code>/v4/promotions/v2/sale/process-sale/{identifierType}/{identifierValue}</code> (processSale) — evaluates the basket against the profile's promotions; it also accepts an optional <code>promotionsToActivate</code> array (<code>{ "key": "uuid"|"code", "value": "…", "pointsToUse": 0 }</code>). <em>process checkout</em> POSTs to <code>/v4/promotions/sale/process-checkout/{identifierType}/{identifierValue}</code> (processCheckout) — finalizes the transaction and additionally requires <code>paymentsReport.paymentItems</code>. The client comes from the top bar (mapping: <code>customId → externalId</code>). Placeholders <code>{rand5}</code>, <code>{date}</code>, <code>{serial}</code>, <code>{iso}</code> work in any string value — the templates use them for <code>clientDateTime</code> and <code>globalTransactionId</code>. Money fields (<code>finalValue</code>, prices) are strings; <code>quantity</code> takes 3 decimal places.</p>
+        <p class="hint"><em>process sale</em> POSTs the JSON to <code>/v4/promotions/v2/sale/process-sale/{identifierType}/{identifierValue}</code> (processSale) — it prices the basket against the profile's promotions. <em>process checkout</em> POSTs to <code>/v4/promotions/sale/process-checkout/{identifierType}/{identifierValue}</code> (processCheckout) — it issues the coupons printed on the receipt, and additionally requires <code>paymentsReport.paymentItems</code>. <strong>Neither call redeems a promotion or creates a transaction</strong>, and processCheckout takes no handbill uuid — it uses <code>checkoutSettings.handbillUuidsForCheckout</code> from the promotion settings. The client comes from the top bar (mapping: <code>customId → externalId</code>; the API also accepts <code>phone</code>, which the top bar does not offer).</p>
+        <p class="hint"><strong>Reading the result:</strong> look at <code>transactionItems[].grantedDiscounts[]</code> — <code>discountOrigin: "PROMOTION"</code> for one of the profile's promotions, <code>"COUPON"</code> for a scanned coupon (with <code>source.couponId</code> = the code). <strong>Ignore <code>transactionAdditionalItems[].status</code></strong>: it reports <code>"INVALID"</code> even for coupons that applied correctly, and it is not in the API spec. If <code>grantedDiscounts</code> and <code>promotionErrors</code> are both empty the promotion simply did not match — usually because it is still <code>ASSIGNED</code> rather than <code>ACTIVE</code> (activate it in the promotion actions section first), or because <code>articleRef</code> is not an item of the catalog that promotion targets. processCheckout answers in <code>message.transactionGrantsReport.printouts[]</code>, one per filled slot, each carrying <code>variables: [{ "type": "CODE", "value": "…" }]</code> — paste that value into the <em>coupon template</em> to spend it.</p>
+        <p class="hint"><strong>Payload rules.</strong> Money fields are strings matching <code>^\d+\.\d{1,2}$</code> — the decimal point is mandatory, so <code>"30"</code> is rejected while <code>"30.2"</code> passes; <code>quantity</code> is <code>^\d+(\.\d{1,3})?$</code> (dot optional, up to 3 decimals). Each item's <code>finalValue</code> must equal <code>finalPrice × quantity</code>, and the basket's <code>finalValue</code> the sum of the items — the templates are pre-balanced (49.99 + 2 × 199.99 = 449.97). <code>transactionAdditionalItems</code> is <em>required</em> by both schemas — an empty array is fine; a coupon entry is <code>{ "seqNo": 1, "type": "COUPON", "code": "…" }</code> and <code>COUPON</code> is the only accepted type. Placeholders <code>{rand5}</code>, <code>{date}</code>, <code>{serial}</code>, <code>{iso}</code> work in any string value and re-roll per request, so repeats get fresh transaction ids. A <code>428</code> means either <code>discountSourceType</code> is not defined in the workspace sale settings, or the chosen handbill variant has no printout template.</p>
       </div>
       <div class="card-result">
         <div class="result-head"><h3>Result</h3><button type="button" class="result-clear btn-trash">Clear</button></div>

@@ -1301,10 +1301,14 @@ async function fetchHandbillBatch() {
   });
 }
 
-// ---- POS: process basket / checkout ----------------------------------------
+// ---- POS: process sale / checkout ----------------------------------------
 
-// Shared base of the processSale/processCheckout request bodies. The sale
-// variant is the base as-is; checkout additionally requires paymentsReport.
+// Shared base of the processSale/processCheckout request bodies. Two line items
+// on purpose: seqNo has to increment, and both sums a tester gets wrong are
+// visible — item finalValue = finalPrice x quantity (199.99 x 2 = 399.98) and
+// basket finalValue = the sum of the items (49.99 + 399.98 = 449.97).
+// articleRef must be an item key in the catalog the promotion targets, or the
+// promotion silently fails to match and grantedDiscounts comes back empty.
 const POS_TEMPLATE_BASE = {
   operationId: 1,
   clientDateTime: '{iso}',
@@ -1314,26 +1318,48 @@ const POS_TEMPLATE_BASE = {
     beginDateTime: '{iso}',
     globalTransactionId: 'trx-{rand5}-{date}-{serial}',
   },
-  finalValue: '30.23',
+  finalValue: '449.97',
   transactionItems: [
     {
       seqNo: 1,
-      articleRef: 'sku-1',
+      articleRef: 'SKU-1001',
       quantity: '1.000',
-      evidPrice: '34.23',
-      finalPrice: '30.23',
-      finalValue: '30.23',
+      evidPrice: '49.99',
+      finalPrice: '49.99',
+      finalValue: '49.99',
+    },
+    {
+      seqNo: 2,
+      articleRef: 'SKU-1002',
+      quantity: '2.000',
+      evidPrice: '199.99',
+      finalPrice: '199.99',
+      finalValue: '399.98',
     },
   ],
   transactionAdditionalItems: [],
 };
 
+// sale     — the base as-is
+// checkout — adds paymentsReport (required); split across two methods so the
+//            paymentItems array and its own seqNo are demonstrated
+// coupon   — a sale carrying a scanned checkout coupon. This is the only shape
+//            the API accepts: type must be "COUPON" and the key must be `code`
+//            (type "USAGE" or a `number` key make the whole request fail).
 function posTemplate(kind) {
   const tpl = JSON.parse(JSON.stringify(POS_TEMPLATE_BASE));
   if (kind === 'checkout') {
     tpl.paymentsReport = {
-      paymentItems: [{ seqNo: 1, type: 1, name: 'cash', amount: '30.23' }],
+      paymentItems: [
+        { seqNo: 1, type: 1, name: 'cash', amount: '200.00' },
+        { seqNo: 2, type: 2, name: 'card', amount: '249.97' },
+      ],
     };
+  }
+  if (kind === 'coupon') {
+    tpl.transactionAdditionalItems = [
+      { seqNo: 1, type: 'COUPON', code: 'PASTE-CODE-FROM-A-CHECKOUT-PRINTOUT' },
+    ];
   }
   return JSON.stringify(tpl, null, 2);
 }
@@ -2674,7 +2700,7 @@ const SECTION_DEFS = [
   { id: 'sec-batch', title: 'Batch overwrite (targetSegment)', group: 'promotions' },
   { id: 'sec-cleanup', title: 'Cleanup promotions', group: 'promotions' },
   { id: 'sec-promo-settings', title: 'Promotion settings', group: 'promotions' },
-  { id: 'sec-pos', title: 'Process basket / checkout (POS)', group: 'promotions' },
+  { id: 'sec-pos', title: 'Process sale / checkout (POS)', group: 'promotions' },
   { id: 'sec-voucher-pools', title: 'Voucher pools', group: 'vouchers' },
   { id: 'sec-vouchers', title: 'Vouchers', group: 'vouchers' },
   { id: 'sec-events', title: 'Add event/transaction to profile', group: 'profile' },
@@ -3325,8 +3351,8 @@ const HELP_TOPICS = {
     ],
   },
   'sec-pos': {
-    title: 'Process basket / checkout (POS)',
-    desc: 'Simulates a POS transaction for the client picked in the top bar (mapping: customId → externalId; the API also accepts phone). Both calls take the same transaction body — operationId, clientDateTime, terminal, transactionMetric, finalValue, transactionItems, transactionAdditionalItems. Placeholders in string values ({rand5}, {date}, {serial}, {iso}) re-roll per request, so repeated sends get fresh transaction ids.',
+    title: 'Process sale / checkout (POS)',
+    desc: 'Simulates a POS transaction for the client picked in the top bar (mapping: customId → externalId; the API also accepts phone, which the top bar does not offer). Both calls take the same body — operationId, clientDateTime, terminal, transactionMetric, finalValue, transactionItems, transactionAdditionalItems — and every one of those is required, transactionAdditionalItems included (an empty array is fine). Neither call redeems anything or creates a transaction. READING THE RESPONSE: the only reliable signal is transactionItems[].grantedDiscounts[] — discountOrigin "PROMOTION" for one of the profile\'s promotions, "COUPON" for a scanned checkout coupon (then source.couponId is the code). Do NOT trust transactionAdditionalItems[].status: it reads "INVALID" even for a coupon that applied correctly, and the field is not in the API spec at all. An empty grantedDiscounts with an empty promotionErrors usually means the promotion did not match — most often it is not activated for the profile yet (see the promotion actions section), or articleRef is not an item of the catalog the promotion targets. Placeholders in string values ({rand5}, {date}, {serial}, {iso}) re-roll per request, so repeats get fresh transaction ids.',
     endpoints: [
       'POST /v4/promotions/v2/sale/process-sale/{identifierType}/{identifierValue}',
       'POST /v4/promotions/sale/process-checkout/{identifierType}/{identifierValue}',
@@ -3337,14 +3363,14 @@ const HELP_TOPICS = {
     ],
   },
   'fn-process-sale': {
-    title: 'process basket — processSale',
-    desc: 'Evaluates the basket against the profile\'s promotions and returns the calculated discounts (transactionItems come back with promotion effects, plus promotionErrors for ones that could not apply). Optionally activates promotions in the same call via promotionsToActivate: [{ "key": "uuid"|"code", "value": "…", "pointsToUse": 0 }].',
+    title: 'process sale — processSale',
+    desc: 'Prices the basket against the profile\'s promotions and returns the recalculated items; it does NOT redeem and does NOT create a transaction. A promotion only applies once it is ACTIVE for the profile — a freshly created one sits at ASSIGNED with possibleRedeems 0 and is skipped in silence, with no entry in promotionErrors, so activate it first. This is also where a scanned checkout coupon is spent: put it in transactionAdditionalItems as { "seqNo": 1, "type": "COUPON", "code": "…" } (the coupon template does this) and look for discountOrigin "COUPON" in grantedDiscounts. Note promotionsToActivate is documented as [{ "key": "uuid"|"code", "value": "…", "pointsToUse": 0 }] but the live API rejects every identifier form ("key is not allowed", same for uuid/code/promotionUuid) and takes only a positive pointsToUse — so it cannot activate a named promotion; use activate-for-client instead.',
     endpoints: ['POST /v4/promotions/v2/sale/process-sale/{identifierType}/{identifierValue}'],
     docs: [{ label: 'processSale (Process basket)', url: `${DOCS.lne}Promotions/operation/processSale_POST` }],
   },
   'fn-process-checkout': {
     title: 'process checkout — processCheckout',
-    desc: 'Finalizes the POS transaction: same body as process basket, but paymentsReport.paymentItems (how the client paid) is required and promotionsToActivate is not accepted. The response contains a transactionGrantReport with printouts.',
+    desc: 'Issues the coupons printed on the receipt after a purchase, chosen from the basket and the profile\'s transaction history. Despite the name it does NOT finalize anything: it neither redeems a promotion nor creates a transaction. Same body as process sale plus paymentsReport.paymentItems (required, how the client paid); promotionsToActivate is not accepted. It takes NO handbill uuid — the handbill comes from checkoutSettings.handbillUuidsForCheckout in the promotion settings, and a variant with no printout template answers 428 NO_VARIANT_WITH_TEMPLATE. The response carries message.transactionGrantsReport.printouts[], one per filled slot, each with the rendered text and variables: [{ "type": "CODE", "value": "<coupon>" }] — that value is the code the POS prints and later sends back through process sale. A fresh code is minted per printout, so the same promotion given to two profiles yields two different codes. Checkout coupons have their own issued → redeemed lifecycle: they are never ASSIGNED to the profile, and must not be sent through activate-for-client, promotion redeem or batch redeem.',
     endpoints: ['POST /v4/promotions/sale/process-checkout/{identifierType}/{identifierValue}'],
     docs: [{ label: 'processCheckout (Process checkout on POS)', url: `${DOCS.lne}Promotions/operation/processCheckout_POST` }],
   },
@@ -3600,6 +3626,7 @@ function init() {
   $('#process-checkout').addEventListener('click', () => processPos('checkout'));
   $('#pos-template-sale').addEventListener('click', () => { $('#pos-json').value = posTemplate('sale'); });
   $('#pos-template-checkout').addEventListener('click', () => { $('#pos-json').value = posTemplate('checkout'); });
+  $('#pos-template-coupon').addEventListener('click', () => { $('#pos-json').value = posTemplate('coupon'); });
   $('#pos-json').value = posTemplate('sale');
   $('#event-add').addEventListener('click', addEventToProfile);
   $('#event-kind-event').addEventListener('click', () => setEventKind('event'));
